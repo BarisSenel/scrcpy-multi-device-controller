@@ -15,7 +15,7 @@ This is a simple Python application built with Tkinter that allows you to view c
 1. Clone this repository:
 
     ```bash
-    git clone https://github.com/BarisSenel/device-selector.git
+    git clone https://github.com/BarisSenel/multi-adb-control.git
     ```
 
 2. Install dependencies:
