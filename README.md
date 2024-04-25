@@ -1,5 +1,7 @@
 # Device Selector
 
+![Example](example.png)
+
 This is a simple Python application built with Tkinter that allows you to view connected Android devices via ADB and control them using Scrcpy.
 
 ## Requirements
