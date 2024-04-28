@@ -1,7 +1,7 @@
 # Device Selector
 
-![Example](image.png)
-![Endpoints](endpoint.png)
+![Example](images/main.png)
+![Endpoints](images/endpoint.png)
 
 This is a simple Python application built with Tkinter that allows you to view connected Android devices via ADB and control them using Scrcpy.
 
@@ -29,6 +29,7 @@ This is a simple Python application built with Tkinter that allows you to view c
 
 4. Replace the `scrcpy_path` variable in the script (`control.py`) with the full path to the Scrcpy executable (`scrcpy.exe`).
 ## Tested Devices
+
 Tested on Windows with 4 Android Phone.
 
 ## Usage
