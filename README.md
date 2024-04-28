@@ -27,6 +27,8 @@ This is a simple Python application built with Tkinter that allows you to view c
 3. Add ADB to the system path. If you haven't done so already, download ADB from the [Android Developers website](https://developer.android.com/studio/releases/platform-tools.html) and follow the instructions to add it to your system path.
 
 4. Replace the `scrcpy_path` variable in the script (`control.py`) with the full path to the Scrcpy executable (`scrcpy.exe`).
+## Tested Devices
+Tested on Windows with 4 Android Phone.
 
 ## Usage
 
