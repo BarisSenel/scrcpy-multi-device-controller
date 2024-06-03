@@ -7,7 +7,7 @@ import os
 from endpoints import run_server, ThreadedHTTPServer
 import sys
 import signal
-
+import time
 USER_JSON_FILE = "user.json"
 
 def load_user_mapping():
@@ -32,7 +32,7 @@ def get_connected_devices():
 
 def start_scrcpy(serial):
     try:
-        scrcpy_path = r"C:\Users\Chaos\Documents\scrcpy-win64-v2.4\scrcpy.exe"  # Replace this with the full path to scrcpy
+        scrcpy_path = r"C:\Program Files\scrcpy-win64-v2.4\scrcpy.exe"  # Replace this with the full path to scrcpy
         print("Starting scrcpy with device:", serial)
         command = [scrcpy_path, '-s', serial]
         print("Executing command:", command)
@@ -100,6 +100,54 @@ def connect_device():
                 start_scrcpy(serial)
                 return
         start_scrcpy(selected_device)
+
+def execute_adb_command(command):
+    subprocess.run(command, check=True, shell=True)
+
+def create_proxy_thread(serial):
+    try:
+        print("Disabling Plane mode")
+        execute_adb_command(f"adb -s {serial} shell cmd connectivity airplane-mode disable")
+        print("Disabling Wifi")
+        execute_adb_command(f"adb -s {serial} shell svc wifi disable")
+        print("Enabling Mobile data")
+        execute_adb_command(f"adb -s {serial} shell svc data enable")
+        print("Enabling USB tethering")
+        try:
+            execute_adb_command(f"adb -s {serial} shell svc usb setFunctions rndis")
+        except Exception as e:
+            print("ignoring exepection") # adb gives exit code 255 for some reason?
+        time.sleep(5)
+        output = subprocess.run(f"adb -s {serial} shell cat /proc/net/arp", check=True, shell=True,capture_output=True).stdout.decode('utf-8')
+        ip = output.split("\n")[1].split(" ")[0]
+        print(ip)
+        text = f"Rotating Proxy Info:\r\n IP:{ip}:1080\r\nReset Link:http://127.0.0.1:8000/ipreset?serial={serial}"
+        print(text)
+        messagebox.showinfo("Rotating Proxy Created!",text)
+    except Exception as e:
+        print("Exception:", e)
+        messagebox.showerror("Error", str(e))
+
+def create_proxy_with_serial(serial):
+    try:
+        print("Starting rotating proxy with device:", serial)
+        proxy_thread = threading.Thread(target=create_proxy_thread, args=(serial,))
+        proxy_thread.start()
+
+    except Exception as e:
+        print("Exception:", e)
+        messagebox.showerror("Error", str(e))
+
+def create_proxy():
+    selected_index = device_listbox.curselection()
+    if selected_index:
+        selected_device = device_listbox.get(selected_index[0])
+        user_mapping = load_user_mapping()
+        for serial, name in user_mapping.items():
+            if name == selected_device:
+                create_proxy_with_serial(serial)
+                return
+        create_proxy_with_serial(selected_device)        
 
 def kill_server_by_serial():
     serial_to_kill = serial_kill_entry.get().strip()
@@ -289,6 +337,9 @@ rename_button.pack(side=tk.LEFT, padx=5)
 connect_button = ttk.Button(buttons_frame, text="Connect", command=connect_device)
 connect_button.pack(side=tk.LEFT, padx=5)
 
+create_proxy_button = ttk.Button(buttons_frame, text="Create Rotating proxy", command=create_proxy)
+create_proxy_button.pack(side=tk.LEFT, padx=5)
+
 console_window = None
 console_button = ttk.Button(buttons_frame, text="Show Console", command=show_console)
 console_button.pack(side=tk.RIGHT, padx=5)
@@ -310,5 +361,5 @@ kill_button.pack(side=tk.LEFT, padx=5)
 
 # Start updating the list of running endpoints periodically
 refresh_running_endpoints()
-
+threading.Thread(target=run_server, args=(8000, "NULL"), daemon=True).start()
 root.mainloop()
