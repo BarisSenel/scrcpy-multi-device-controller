@@ -3,6 +3,7 @@ import threading
 import subprocess
 import time
 import os
+from urllib.parse import urlparse, parse_qs
 
 class RequestHandler(BaseHTTPRequestHandler):
     request_count = 0
@@ -14,45 +15,54 @@ class RequestHandler(BaseHTTPRequestHandler):
             return True
         except subprocess.CalledProcessError:
             return False
-
-    def do_POST(self):
-        self.send_response(200)
-        self.send_header('Content-type', 'text/plain')
-        self.end_headers()
-
-        self.handle_request()
-
     def do_GET(self):
-        self.send_response(200)
-        self.send_header('Content-type', 'text/plain')
-        self.end_headers()
+        parsed_url = urlparse(self.path)
+       
+        # Extract query parameters
+        query_params = parse_qs(parsed_url.query)
 
-        self.handle_request()
+        # Get the value of the 'serial' parameter
+        
 
-    def handle_request(self):
-        with self.lock:
-            self.request_count += 1
-            count = self.request_count
-
-        if count >= 1:
-            if self.execute_adb_command(f"adb -s {self.server.serial} shell svc data disable"):
-                time.sleep(5)
-                if self.execute_adb_command(f"adb -s {self.server.serial} shell svc data enable"):
-                    self.wfile.write(b'Phone data toggled successfully.')
-                else:
-                    self.wfile.write(b'Failed to enable phone data.')
+        if parsed_url.path == "/ipreset":
+            serial = query_params.get('serial', [None])[0]
+            if serial == None:
+                self.send_response(400)
+                self.send_header('Content-type', 'text/html')
+                self.end_headers()
+                self.wfile.write(bytes(f"Missing serial parameter", "utf-8"))
             else:
-                self.wfile.write(b'Failed to disable phone data.')
-            with self.lock:
-                self.request_count = 0
+                result = self.handle_request(serial)
+                if result:
+                    self.send_response(200)
+                    self.send_header('Content-type', 'text/html')
+                    self.end_headers()
+                    self.wfile.write(bytes(f"Phone data toggled successfully.", "utf-8"))
+                else:
+                    self.send_response(500)
+                    self.send_header('Content-type', 'text/html')
+                    self.end_headers()
+                    self.wfile.write(bytes(f"Failed to disable phone data.", "utf-8"))
         else:
-            while True:
-                with self.lock:
-                    if self.request_count >= 3:
-                        break
-                time.sleep(1)
+            self.send_response(404)
+            self.send_header('Content-type', 'text/html')
+            self.end_headers()
+            self.wfile.write(bytes(f"404 not found", "utf-8"))
+        
 
-            self.wfile.write(b'')
+    def handle_request(self,serial):
+        if self.execute_adb_command(f"adb -s {serial} shell cmd connectivity airplane-mode enable"):
+            time.sleep(5)
+            if self.execute_adb_command(f"adb -s {serial} shell cmd connectivity airplane-mode disable"):
+                time.sleep(1)
+                return True
+            else:
+                return False
+        else:
+            return False
+        
+
+
 
 class ThreadedHTTPServer(HTTPServer):
     running_servers = {}
