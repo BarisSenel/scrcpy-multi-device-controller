@@ -9,7 +9,9 @@ import sys
 import signal
 
 USER_JSON_FILE = "user.json"
+ENDPOINTS_JSON_FILE = "endpoints.json"
 
+# Load user mapping functions
 def load_user_mapping():
     if os.path.exists(USER_JSON_FILE):
         with open(USER_JSON_FILE, "r") as f:
@@ -20,6 +22,26 @@ def save_user_mapping(user_mapping):
     with open(USER_JSON_FILE, "w") as f:
         json.dump(user_mapping, f)
 
+def save_endpoints():
+    running_endpoints = ThreadedHTTPServer.get_running_servers()
+    endpoints_data = [{"port": port, "serial": serial} for port, serial in running_endpoints]
+    with open(ENDPOINTS_JSON_FILE, "w") as f:
+        json.dump(endpoints_data, f)
+    messagebox.showinfo("Save Endpoints", "Current endpoints have been saved successfully.")
+
+def load_endpoints():
+    if os.path.exists(ENDPOINTS_JSON_FILE):
+        with open(ENDPOINTS_JSON_FILE, "r") as f:
+            endpoints_data = json.load(f)
+        for endpoint in endpoints_data:
+            port = endpoint["port"]
+            serial = endpoint["serial"]
+            threading.Thread(target=run_server, args=(port, serial), daemon=True).start()
+        update_running_endpoints()
+        messagebox.showinfo("Load Endpoints", "Endpoints have been loaded successfully.")
+
+
+# ADB and scrcpy functions
 def get_connected_devices():
     try:
         result = subprocess.run(['adb', 'devices'], capture_output=True, text=True, check=True)
@@ -34,7 +56,7 @@ def start_scrcpy(serial):
     try:
         scrcpy_path = r"C:\Users\Chaos\Documents\scrcpy-win64-v2.4\scrcpy.exe"  # Replace this with the full path to scrcpy
         print("Starting scrcpy with device:", serial)
-        command = [scrcpy_path, '-s', serial]
+        command = [scrcpy_path, '--turn-screen-off', '-s', serial]
         print("Executing command:", command)
 
         def run_scrcpy():
@@ -47,6 +69,7 @@ def start_scrcpy(serial):
         print("Exception:", e)
         messagebox.showerror("Error", str(e))
 
+# Device selection and control functions
 def on_device_select(event):
     selected_index = device_listbox.curselection()
     if selected_index:
@@ -101,6 +124,7 @@ def connect_device():
                 return
         start_scrcpy(selected_device)
 
+# Server control functions
 def kill_server_by_serial():
     serial_to_kill = serial_kill_entry.get().strip()
     if serial_to_kill:
@@ -111,10 +135,14 @@ def kill_server_by_serial():
                 server = ThreadedHTTPServer.running_servers[endpoint]
                 server.shutdown()  # Stop the server associated with the specified serial ID
                 del ThreadedHTTPServer.running_servers[endpoint]
+                save_endpoints()  # Save endpoints after killing a server
                 messagebox.showinfo("Server Killed", f"Server for serial '{serial_to_kill}' has been killed.")
                 update_running_endpoints()
                 return
         messagebox.showerror("Error", f"No server found for serial '{serial_to_kill}'.")
+
+
+
 
 def show_console():
     global console_window
@@ -178,6 +206,7 @@ def create_custom_endpoint():
     else:
         messagebox.showerror("Error", "Invalid port number")
 
+# Console redirection
 class ConsoleRedirector:
     def __init__(self, widget):
         self.widget = widget
@@ -191,6 +220,7 @@ class ConsoleRedirector:
     def flush(self):
         pass
 
+# Refresh running endpoints periodically
 def update_running_endpoints():
     running_endpoints = ThreadedHTTPServer.get_running_servers()
     endpoints_listbox.delete(0, tk.END)
@@ -202,6 +232,7 @@ def refresh_running_endpoints():
     update_running_endpoints()
     root.after(10000, refresh_running_endpoints)  # Refresh every 10 seconds
 
+# GUI setup
 bg_color = "#ffffff"
 fg_color = "#1e1e1e"
 
@@ -217,7 +248,7 @@ style.configure("TButton", background=bg_color, foreground=fg_color)
 style.configure("TEntry", background=bg_color, foreground=fg_color)
 style.configure("TListbox", background=bg_color, foreground=fg_color)
 
-root.geometry("600x500")
+root.geometry("800x500")
 
 menu_bar = tk.Menu(root)
 root.config(menu=menu_bar)
@@ -256,6 +287,12 @@ serial_entry.pack(side=tk.LEFT, padx=5)
 
 create_endpoint_button = ttk.Button(endpoints_frame, text="Create Endpoint", command=create_custom_endpoint)
 create_endpoint_button.pack(side=tk.LEFT, padx=5)
+
+save_endpoints_button = ttk.Button(endpoints_frame, text="Save Endpoints", command=save_endpoints)
+save_endpoints_button.pack(side=tk.LEFT, padx=5)
+
+load_endpoints_button = ttk.Button(endpoints_frame, text="Load Endpoints", command=load_endpoints)
+load_endpoints_button.pack(side=tk.LEFT, padx=5)
 
 search_frame = ttk.Frame(main_frame)
 search_frame.pack(side=tk.TOP, fill=tk.X, padx=10, pady=5)
@@ -310,5 +347,11 @@ kill_button.pack(side=tk.LEFT, padx=5)
 
 # Start updating the list of running endpoints periodically
 refresh_running_endpoints()
+
+# Save endpoints on exit
+def on_exit():
+    root.quit()
+
+root.protocol("WM_DELETE_WINDOW", on_exit)
 
 root.mainloop()
