@@ -1,7 +1,7 @@
 # Scrcpy Multiple Device Controller
 
 ![Example](images/main.png)
-![Endpoints](images/endpoint.png)
+![Endpoints](images/endpoints.png)
 
 This is a simple Python application built with Tkinter & CustomTkinter that allows you to view connected Android devices via ADB and control them using Scrcpy.
 
