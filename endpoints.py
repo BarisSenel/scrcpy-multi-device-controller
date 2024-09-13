@@ -7,6 +7,8 @@ import os
 class RequestHandler(BaseHTTPRequestHandler):
     request_count = 0
     lock = threading.Lock()
+    last_executed_time = 0
+    cooldown_period = 10  # seconds
 
     def execute_adb_command(self, command):
         try:
@@ -35,24 +37,34 @@ class RequestHandler(BaseHTTPRequestHandler):
             count = self.request_count
 
         if count >= 1:
-            if self.execute_adb_command(f"adb -s {self.server.serial} shell svc data disable"):
-                time.sleep(5)
-                if self.execute_adb_command(f"adb -s {self.server.serial} shell svc data enable"):
-                    self.wfile.write(b'Phone data toggled successfully.')
+            current_time = time.time()
+            if current_time - self.last_executed_time >= self.cooldown_period:
+                if self.execute_adb_command(f"adb -s {self.server.serial} shell svc data disable"):
+                    time.sleep(5)
+                    if self.execute_adb_command(f"adb -s {self.server.serial} shell svc data enable"):
+                        self.wfile.write(b'Phone data toggled successfully.')
+                    else:
+                        self.wfile.write(b'Failed to enable phone data.')
                 else:
-                    self.wfile.write(b'Failed to enable phone data.')
+                    self.wfile.write(b'Failed to disable phone data.')
+                with self.lock:
+                    self.request_count = 0
+                    self.last_executed_time = time.time()
             else:
-                self.wfile.write(b'Failed to disable phone data.')
-            with self.lock:
-                self.request_count = 0
+                remaining_time = int(self.cooldown_period - (current_time - self.last_executed_time))
+                response = f'Request ignored due to cooldown period. {remaining_time} seconds left.'
+                self.wfile.write(response.encode())
+                with self.lock:
+                    self.request_count -= 1
         else:
             while True:
                 with self.lock:
-                    if self.request_count >= 3:
+                    if self.request_count >= 1:
                         break
                 time.sleep(1)
 
             self.wfile.write(b'')
+
 
 class ThreadedHTTPServer(HTTPServer):
     running_servers = {}
